@@ -1,166 +1,164 @@
-# Tree Detection & Counting (Modul 7)
+# Tree Detection & Counting (Module 7)
 
-Plugin analitik Aerial Analytics Platform untuk mendeteksi tajuk pohon dari citra drone RGB,
-menyaring hasilnya berdasarkan confidence, memetakan tiap pohon ke koordinat WGS84, lalu menghitung
-jumlah dan kepadatan pohon.
+Aerial Analytics Platform plugin that detects tree crowns in RGB drone imagery, filters detections
+by confidence, maps each tree to WGS84 coordinates, then reports tree count and density.
 
 - **Plugin ID:** `tree-detection-counting`
-- **Kategori:** `tree_detection`
-- **Runtime:** Python ≥ 3.10 (diuji di 3.10.11), tanpa Rust
+- **Category:** `tree_detection`
+- **Runtime:** Python >= 3.10 (tested on 3.10.11), no Rust
 - **Repo:** [Lambdasz/Module-7-Potencial-Men](https://github.com/Lambdasz/Module-7-Potencial-Men)
-- **Kontrak antar-modul:** [CONTRACT.md](CONTRACT.md), baca ini kalau kamu dari Modul 2, 3, 9, 10, atau 11
+- **Cross-module contract:** [CONTRACT.md](CONTRACT.md), required reading if you work on Modules 2, 3, 9, 10 or 11
 
-Repo ini berdiri sendiri, terpisah dari repo core (`Aerial-Analytics-Platform`). Modul lain
-berkomunikasi lewat enam file JSON, bukan lewat impor kode. Skema resminya (`schemas/`) milik repo
-core, jadi validasi kontrak di bawah perlu salinan repo core.
+The repo stands alone, separate from the core repo (`Aerial-Analytics-Platform`). Other modules
+talk to it through six JSON files, not by importing code. The official schemas (`schemas/`) belong
+to the core repo, so validating the contracts below needs a copy of it.
 
 ## Status
 
-Kedelapan fitur berjalan dan teruji, termasuk model deteksinya. Detektor default
-`opencv_watershed` memakai pengolahan citra klasik: Excess Green, ambang Otsu, morfologi,
-distance transform, lalu pemisahan tajuk yang berdempet. Alasannya: tidak butuh GPU, tidak
-mengunduh bobot model, dan hasilnya sama untuk gambar yang sama sehingga test bisa jalan offline.
+All eight features run and are covered by tests, the detection model included. The default
+detector, `opencv_watershed`, is classical image processing: Excess Green, Otsu threshold,
+morphology, distance transform, then a split for touching crowns. The choice comes down to no GPU,
+no downloaded weights, and identical output for identical input, which keeps the tests offline.
 
-Yang perlu diketahui sebelum mempercayai angkanya:
+What to know before trusting the numbers:
 
-- Detektornya klasik, bukan deep learning. Akurasinya di kebun tropis yang tajuknya rapat belum
-  diukur; rencana pembanding `deepforest` ada di `requirements.txt` sebagai komentar, dan baru
-  diaktifkan setelah tolok ukur presisi/recall pada gambar berlabel.
-- Ini citra RGB saja. Tidak ada tinggi pohon, volume, biomassa, atau jenis pohon, dan itu sudah
-  tertulis di kontrak supaya Modul 3 tidak menunggu field yang tidak akan ada.
-- Koreksi manual (Feature 7) sudah ada fungsinya dan teruji, tetapi belum tersambung ke UI karena
-  butuh command Tauri baru di core, jadi wewenang Modul 2.
+- The detector is classical, not deep learning. Accuracy on dense tropical canopy has not been
+  measured. A `deepforest` comparison sits in `requirements.txt` as a comment and gets enabled only
+  after precision/recall benchmarking on labelled images.
+- RGB only. No tree height, volume, biomass or species. The contract states this so Module 3 does
+  not wait for fields that are not coming.
+- Manual correction (Feature 7) is implemented and tested but not wired to the UI. That needs a new
+  Tauri command in core, which is Module 2's call.
 
-## Struktur
+## Layout
 
 ```text
 .
-├── manifest.json            # Kontrak 1: identitas & runtime plugin
-├── parameters.json          # Kontrak 2: parameter yang bisa diatur user (form Modul 2)
-├── inputs.json              # Kontrak 3: input yang dibutuhkan (format gambar, metadata, AOI)
-├── outputs.json             # Kontrak 4: metrik & artefak yang dihasilkan
-├── execution_payload.json   # Fixture: contoh payload dari host
-├── execution_result.json    # Fixture: contoh hasil yang ditulis plugin
-├── main.py                  # Entrypoint CLI (lapisan I/O)
+├── manifest.json            # Contract 1: plugin identity and runtime
+├── parameters.json          # Contract 2: user-facing parameters (Module 2 form)
+├── inputs.json              # Contract 3: inputs it needs (image format, metadata, AOI)
+├── outputs.json             # Contract 4: metrics and artifacts it produces
+├── execution_payload.json   # Fixture: sample payload from the host
+├── execution_result.json    # Fixture: sample result written by the plugin
+├── main.py                  # CLI entrypoint (I/O layer)
 ├── requirements.txt
-├── CONTRACT.md              # Dokumen kontrak Modul 7 untuk modul lain
-├── treedet/                 # Logika inti (fungsi murni)
-│   ├── models.py            # Model data bersama (Pydantic v2, immutable)
-│   ├── errors.py            # PluginExecutionError dan turunannya
-│   ├── detectors.py         # Registry model deteksi + detektor opencv_watershed
-│   ├── detection.py         # Fitur 1: detect_trees (+ deduplikasi antar-tile)
-│   ├── counting.py          # Fitur 2: count_trees
-│   ├── filtering.py         # Fitur 3: filter_by_confidence
-│   ├── location.py          # Fitur 4: map_tree_locations
-│   ├── area.py              # Fitur 5: count_trees_in_area (+ luas poligon)
-│   ├── density.py           # Fitur 6: calculate_tree_density
-│   ├── review.py            # Fitur 7: apply_review
-│   ├── output.py            # Fitur 8: build_plugin_output → execution_result
-│   └── pipeline.py          # Payload → fitur-fitur di atas
-└── tests/                   # Unit test, test detektor, dan end-to-end (unittest)
+├── CONTRACT.md              # Module 7 contract for other modules
+├── treedet/                 # Core logic (pure functions)
+│   ├── models.py            # Shared data models (Pydantic v2, immutable)
+│   ├── errors.py            # PluginExecutionError and subclasses
+│   ├── detectors.py         # Detection model registry and the opencv_watershed detector
+│   ├── detection.py         # Feature 1: detect_trees (+ cross-tile dedup)
+│   ├── counting.py          # Feature 2: count_trees
+│   ├── filtering.py         # Feature 3: filter_by_confidence
+│   ├── location.py          # Feature 4: map_tree_locations
+│   ├── area.py              # Feature 5: count_trees_in_area (+ polygon area)
+│   ├── density.py           # Feature 6: calculate_tree_density
+│   ├── review.py            # Feature 7: apply_review
+│   ├── output.py            # Feature 8: build_plugin_output -> execution_result
+│   └── pipeline.py          # Wires the payload through the features above
+└── tests/                   # Unit tests, detector tests and end-to-end tests (unittest)
 ```
 
 ## Setup
 
-Taruh virtual environment **di luar repo**, supaya `git status` tetap bersih dan cache alat tidak
-ikut masuk.
+Keep the virtual environment **outside the repo**, so `git status` stays clean and tool caches do not
+end up in it.
 
 ```powershell
 py -3.10 -m venv $HOME\.venvs\aerial-m7
 & $HOME\.venvs\aerial-m7\Scripts\Activate.ps1
 pip install -r requirements.txt
-pip install ruff check-jsonschema   # alat pengembangan, bukan dependensi plugin
+pip install ruff check-jsonschema   # dev tools, not plugin dependencies
 ```
 
-Di Linux/macOS: `python3.10 -m venv ~/.venvs/aerial-m7 && source ~/.venvs/aerial-m7/bin/activate`.
+On Linux/macOS: `python3.10 -m venv ~/.venvs/aerial-m7 && source ~/.venvs/aerial-m7/bin/activate`.
 
-## Menjalankan
+## Running
 
 ```bash
-# Healthcheck (dipanggil Modul 2 sebelum menampilkan plugin sebagai aktif)
+# Healthcheck (Module 2 calls this before showing the plugin as active)
 python main.py --healthcheck
 
-# Analisis
+# Analysis
 python main.py --input <execution_payload.json> --output <result.json>
 ```
 
-`execution_payload.json` berisi path gambar contoh (`/absolute/path/...`), jadi kalau dijalankan
-apa adanya hasilnya `status: "failure"` dengan pesan `Image not found`. Itu disengaja dan
-membuktikan plugin gagal dengan rapi tanpa crash. Ganti `target.image_path` dengan gambar asli
-untuk mencoba alur sukses.
+`execution_payload.json` points at a placeholder image path (`/absolute/path/...`), so running it as
+it is gives `status: "failure"` with the message `Image not found`. That is deliberate: it shows the
+plugin failing cleanly instead of crashing. Point `target.image_path` at a real image to walk the
+success path.
 
-## Test
+## Tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Test mencakup kedelapan fitur, termasuk kasus batas dari spesifikasi: tidak ada deteksi (`0`, bukan
-error), threshold di luar 0–1 (ditolak Pydantic), luas 0 (`ZeroAreaError`), GeoJSON tidak valid
-(`InvalidGeometryError`), gambar hilang (`PluginExecutionError`), format tidak didukung
-(`UnsupportedFormatError`), dan gambar tidak terbaca (`PluginExecutionError`).
+Coverage spans all eight features plus the edge cases from the spec: no detections (`0`, not an
+error), threshold outside 0-1 (rejected by Pydantic), zero area (`ZeroAreaError`), invalid GeoJSON
+(`InvalidGeometryError`), missing image (`PluginExecutionError`), unsupported format
+(`UnsupportedFormatError`), and unreadable image (`PluginExecutionError`).
 
-Test detektor memakai citra sintetis: lingkaran hijau di latar gelap, jumlahnya diketahui. Itu
-membuktikan alur dan pemisahan tajuk berdempet, bukan akurasi pada foto asli.
+Detector tests use synthetic images: green circles on a dark background, with a known count. They
+prove the pipeline and the split of touching crowns, not accuracy on real photographs.
 
-## Lint dan format
+## Lint and format
 
 ```bash
 ruff check .
 ruff format --check .
 ```
 
-## Validasi kontrak
+## Contract validation
 
-Skema ada di repo core, jadi jalankan dari salinan repo core dengan path ke repo ini:
+The schemas live in the core repo, so run these from a copy of it, pointing at this repo:
 
 ```bash
-check-jsonschema --schemafile schemas/plugin.schema.json            <repo-ini>/manifest.json
-check-jsonschema --schemafile schemas/parameters.schema.json        <repo-ini>/parameters.json
-check-jsonschema --schemafile schemas/inputs.schema.json            <repo-ini>/inputs.json
-check-jsonschema --schemafile schemas/outputs.schema.json           <repo-ini>/outputs.json
-check-jsonschema --schemafile schemas/execution_payload.schema.json <repo-ini>/execution_payload.json
-check-jsonschema --schemafile schemas/execution_result.schema.json  <repo-ini>/execution_result.json
+check-jsonschema --schemafile schemas/plugin.schema.json            <this-repo>/manifest.json
+check-jsonschema --schemafile schemas/parameters.schema.json        <this-repo>/parameters.json
+check-jsonschema --schemafile schemas/inputs.schema.json            <this-repo>/inputs.json
+check-jsonschema --schemafile schemas/outputs.schema.json           <this-repo>/outputs.json
+check-jsonschema --schemafile schemas/execution_payload.schema.json <this-repo>/execution_payload.json
+check-jsonschema --schemafile schemas/execution_result.schema.json  <this-repo>/execution_result.json
 ```
 
-## Desain (pemrograman fungsional)
+## Design (functional style)
 
-- **Pure core, impure shell.** Semua fungsi di `treedet/` murni: input sama, output sama, tanpa
-  I/O. Pengecualiannya hanya `detect_trees`, karena detektor harus membaca gambar. Baca/tulis
-  file, jam, dan exit code hanya ada di `main.py`.
-- **Data immutable.** Semua model Pydantic memakai `frozen=True`, dan list berbentuk `tuple`.
-  Fungsi tidak pernah mengubah input; perubahan dibuat lewat `model_copy(update=...)`.
-- **Waktu sebagai parameter.** `count_trees` dan `analyze` menerima `counted_at` dari luar, bukan
-  membaca jam sendiri, supaya hasilnya bisa diuji dan diulang.
-- **Detector sebagai fungsi.** Model deteksi adalah fungsi biasa yang disuntikkan lewat registry,
-  sehingga test bisa memakai detektor palsu tanpa model sungguhan.
-- **Error terisolasi.** Semua error turunan `PluginExecutionError` ditangkap `main.py`, lalu ditulis
-  sebagai hasil `failure`. Plugin tidak pernah crash tanpa menulis hasil (syarat Modul 2).
+- **Pure core, impure shell.** Everything in `treedet/` is pure: same input, same output, no I/O.
+  The one exception is `detect_trees`, because the detector has to read the image. File reads and
+  writes, the clock and the exit code live in `main.py` only.
+- **Immutable data.** Every Pydantic model uses `frozen=True`, and lists are tuples. Functions never
+  mutate their input; changes go through `model_copy(update=...)`.
+- **Time is a parameter.** `count_trees` and `analyze` take `counted_at` from the caller instead of
+  reading the clock, which keeps results testable and repeatable.
+- **Detector as a function.** A detection model is a plain function registered in a registry, so
+  tests can substitute a fake detector and skip real models.
+- **Errors stay contained.** `main.py` catches every `PluginExecutionError` subclass and writes a
+  `failure` result. The plugin never dies without writing a result, which Module 2 requires.
 
-## Menambah model deteksi
+## Adding a detection model
 
-1. Tulis fungsi `(image_path: str, model_config: Mapping) -> Sequence[tuple[BBox, float]]` di
-   `treedet/detectors.py`. Fungsi ini mengembalikan kotak tajuk dalam piksel beserta confidence 0–1.
-2. Daftarkan fungsi itu di `DETECTORS`, misalnya `"deepforest": deepforest_detector`.
-3. Tambahkan namanya ke `options` parameter `detector` di `parameters.json`.
-4. Tambahkan paketnya ke `requirements.txt` dan ke `check_dependencies()` di `main.py`.
-5. Kalau memakai GPU, sesuaikan `execution.gpu` di `manifest.json`.
+1. Write a function `(image_path: str, model_config: Mapping) -> Sequence[tuple[BBox, float]]` in
+   `treedet/detectors.py`. It returns crown boxes in pixels with a 0-1 confidence.
+2. Register it in `DETECTORS`, for example `"deepforest": deepforest_detector`.
+3. Add the name to `options` of the `detector` parameter in `parameters.json`.
+4. Add the package to `requirements.txt` and to `check_dependencies()` in `main.py`.
+5. If it uses a GPU, adjust `execution.gpu` in `manifest.json`.
 
-Detector mengurus pembagian tile sendiri (ukurannya ada di `model_config["tile_size"]`) dan
-inferensi. Deduplikasi antar-tile, filter confidence, georeferensi, dan penghitungan sudah
-ditangani pipeline. Parameter baru yang dibutuhkan model harus ikut dikirim di
-`pipeline.model_config_of`, kalau tidak nilainya sampai ke form tapi diabaikan diam-diam.
+The detector handles tiling itself (size comes from `model_config["tile_size"]`) and the inference
+step. Cross-tile dedup, confidence filtering, georeferencing and counting are already in the
+pipeline. Any new parameter a model needs has to be passed along in `pipeline.model_config_of`,
+otherwise the value reaches the form and then gets ignored in silence.
 
-## Batasan yang diketahui
+## Known limits
 
-- Satu gambar per eksekusi (`granularity: single_image`). Belum mendukung mosaik atau GeoTIFF yang
-  menyimpan transformasinya sendiri.
-- Georeferensi menganggap citra nadir dan pusat gambar tepat di titik GPS, dengan pergeseran
-  dihitung dari GSD lalu diputar sesuai `rotation_deg`. Error melebar pada orthomosaic atau kamera
-  miring.
-- Tajuk yang jaraknya lebih rapat dari separuh radius akan terbaca sebagai satu pohon, karena
-  pemisahan memakai puncak distance transform.
-- Tajuk yang jatuh persis di batas tile bisa dilaporkan beberapa piksel melenceng, karena
-  deduplikasi menyimpan salinan yang confidence-nya paling tinggi.
-- Tanpa `gsd_m` dan `rotation_deg` dari Modul 1, plugin memakai `gsd_cm` (default 3 cm/px) dan
-  rotasi 0.
+- One image per run (`granularity: single_image`). No mosaics, and no GeoTIFF carrying its own
+  transform.
+- Georeferencing assumes a nadir image with its centre exactly on the GPS point, offsets it by the
+  GSD and rotates it by `rotation_deg`. Error grows on orthomosaics or tilted cameras.
+- Crowns closer together than half a radius read as a single tree, because the split relies on
+  distance transform peaks.
+- A crown sitting exactly on a tile boundary can be reported a few pixels off, since dedup keeps the
+  copy with the higher confidence.
+- Without `gsd_m` and `rotation_deg` from Module 1, the plugin falls back to the `gsd_cm` parameter
+  (default 3 cm/px) and zero rotation.

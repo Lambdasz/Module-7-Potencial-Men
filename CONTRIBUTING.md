@@ -1,9 +1,9 @@
-# Cara berkontribusi di repo Modul 7
+# Contributing to Module 7
 
-Repo ini berdiri sendiri dan hanya berisi Python. Tidak ada Rust, npm, prettier, atau clippy di
-sini; gate-nya juga berbeda dari repo core.
+This repo is standalone and Python only. No Rust, npm, prettier or clippy here, and the gates differ
+from the core repo.
 
-## Sebelum push
+## Before pushing
 
 ```bash
 ruff check .
@@ -11,35 +11,35 @@ ruff format --check .
 python -m unittest discover -s tests -v
 ```
 
-Ketiganya harus lulus. Kalau tidak, rapikan dulu:
+All three have to pass. If they do not, clean up first:
 
 ```bash
 ruff check --fix .
 ruff format .
 ```
 
-## Commit dan branch
+## Commits and branches
 
-- Gaya Conventional Commits, sama seperti repo core: `feat(detector): add opencv_watershed`.
-- Nama branch `<type>/<short-kebab-description>`, misalnya `feat/opencv-detector`.
-- Satu commit satu maksud. PR kecil dan atomik lebih cepat direview daripada satu PR besar.
-- Virtual environment dan berkas hasil plugin tidak ikut di-commit (lihat `.gitignore`).
+- Conventional Commits, same as the core repo: `feat(detector): add opencv_watershed`.
+- Branch names use `<type>/<short-kebab-description>`, for example `feat/opencv-detector`.
+- One commit, one intent. Small atomic PRs get reviewed faster than one large one.
+- Virtual environments and plugin output files stay out of commits, see `.gitignore`.
 
-## Bahasa
+## Language
 
-Kode, nama variabel, dan komentar ditulis Inggris supaya konsisten dengan repo core. Dokumen untuk
-tim (README, CONTRACT) ditulis Indonesia.
+Code, identifiers and comments are written in English to match the core repo, and so are the
+project docs (README, CONTRACT, CONTRIBUTING).
 
-## Mengubah kontrak
+## Changing the contract
 
-`parameters.json`, `inputs.json`, dan `outputs.json` dibaca modul lain. Menambah parameter berarti
-form Modul 2 ikut berubah, dan menambah metrik atau artefak berarti dashboard Modul 11 ikut berubah.
-Ajukan dulu, jangan dikirim mendadak di tengah sprint:
+`parameters.json`, `inputs.json` and `outputs.json` are read by other modules. A new parameter
+changes the Module 2 form, and a new metric or artifact changes the Module 11 dashboard. Ask first
+instead of dropping it mid-sprint:
 
-- Parameter baru: tambahkan di `parameters.json`, kirim ke detektor lewat
-  `pipeline.model_config_of` kalau model membutuhkannya, dan sebut di PR bahwa form Modul 2 ikut
-  berubah.
-- Metrik atau artefak baru: ubah `outputs.json` dan `treedet/output.py`, lalu koordinasikan dengan
-  Modul 11 sebelum di-merge.
-- Hal yang menuntut command Tauri atau halaman baru di core adalah wewenang Modul 2. Tulis
-  permintaannya sebagai issue, jangan dikerjakan dari repo ini.
+- New parameter: add it to `parameters.json`, pass it to the detector through
+  `pipeline.model_config_of` if the model needs it, and say in the PR that the Module 2 form changes
+  too.
+- New metric or artifact: change `outputs.json` and `treedet/output.py`, then coordinate with
+  Module 11 before merging.
+- Anything that needs a Tauri command or a new page in core belongs to Module 2. File it as an issue
+  rather than doing it from this repo.
