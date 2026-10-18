@@ -1,0 +1,16 @@
+# Python dependencies for the Tree Detection & Counting plugin (Module 7).
+# Keep this list minimal: it is installed by Module 2 before the plugin can run.
+
+# Data contracts and validation (treedet/models.py, treedet/pipeline.py).
+pydantic>=2,<3
+
+# Default detector 'opencv_watershed' (treedet/detectors.py).
+# The headless build is enough: the plugin never opens a window.
+numpy>=1.26
+opencv-python-headless>=4.8
+
+# Only needed by the optional 'deepforest' comparison detector, which must be
+# benchmarked before it can replace opencv_watershed. Weights are downloaded on
+# first use, so leave these commented out until that decision is made:
+# deepforest>=1.0
+# torch>=2.0

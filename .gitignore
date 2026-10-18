@@ -1,0 +1,23 @@
+# Virtual environments. Keep them outside the repo; these lines are a safety net.
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Tool caches (ruff decides where its cache goes, this keeps both layouts out)
+.ruff_cache/
+.pytest_cache/
+
+# Plugin output: the host writes runs into its own output_dir, never into the repo.
+*_tree_points.geojson
+*_plugin_output.json
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
