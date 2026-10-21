@@ -161,6 +161,25 @@ step. Cross-tile dedup, confidence filtering, georeferencing and counting are al
 pipeline. Any new parameter a model needs has to be passed along in `pipeline.model_config_of`,
 otherwise the value reaches the form and then gets ignored in silence.
 
+## Using results from other modules
+
+Other modules read the JSON files, not this package, but three helpers save them from redoing the
+same arithmetic. They are pure and take the artifact as it was written, so no detector or torch is
+needed:
+
+```python
+from treedet import compare_plot_summaries, plot_summaries, tree_points_of
+
+points = tree_points_of(open("out/run-1_tree_points.geojson").read())  # Module 3 / 9 input
+plots = plot_summaries(points, module_9_plot_boundaries)  # Module 9: count + density
+change = compare_plot_summaries(last_season, this_season)  # Module 10: per-plot delta
+```
+
+`plot_summaries` returns one dict per plot: `plot_id`, `tree_count`, `plot_area_m2`,
+`tree_density`, `tree_density_unit`. `compare_plot_summaries` joins two runs on `plot_id` and adds
+`tree_count_change`. Module 11 needs nothing extra: it charts the `metrics` block of
+`execution_result.json`, whose labels and units already live in `outputs.json`.
+
 ## Known limits
 
 - One image per run (`granularity: single_image`). No mosaics, and no GeoTIFF carrying its own
@@ -178,3 +197,7 @@ otherwise the value reaches the form and then gets ignored in silence.
 - Inference in `deeplabv3plus` runs on CPU when no CUDA device is present. One 24 MP photo is far
   slower than the 300 s timeout in `manifest.json` allows, so measure before pointing it at a full
   flight session.
+- `tree_points_of` accepts `Point` features only, which is what the plugin writes. A polygon or a
+  line in the artifact raises `PluginExecutionError` instead of being guessed at.
+- `plot_summaries` raises `ZeroAreaError` for a plot with no area. Reporting a density of zero would
+  hide a broken boundary behind a plausible number.
