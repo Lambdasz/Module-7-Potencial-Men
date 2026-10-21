@@ -9,8 +9,9 @@ pydantic>=2,<3
 numpy>=1.26
 opencv-python-headless>=4.8
 
-# Only needed by the optional 'deepforest' comparison detector, which must be
-# benchmarked before it can replace opencv_watershed. Weights are downloaded on
-# first use, so leave these commented out until that decision is made:
-# deepforest>=1.0
+# Only needed by the optional 'deeplabv3plus' detector (treedet/detectors.py). The
+# default detector never imports them, so they stay commented out: torch alone is
+# about 2 GB and the platform installs this file before the plugin can run.
+# Enable both (and a trained checkpoint) to use that model:
+# segmentation-models-pytorch>=0.3
 # torch>=2.0

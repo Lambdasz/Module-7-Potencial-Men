@@ -14,18 +14,18 @@ Module 7 exposes no functions that Rust or React calls directly. Module 2 runs i
 process**, following the `plugins/template` pattern:
 
 ```text
-python main.py --healthcheck                                  → exit 0 healthy / 1 unhealthy
-python main.py --input <payload.json> --output <result.json>  → exit 0 done / 1 failed
+python main.py --healthcheck                                  â†’ exit 0 healthy / 1 unhealthy
+python main.py --input <payload.json> --output <result.json>  â†’ exit 0 done / 1 failed
 ```
 
 All data moves through JSON files validated against the schemas in `schemas/`:
 
 ```text
-M1 (image + metadata) ─┐
-M3 (AOI) ──────────────┼─► M2 builds execution_payload.json ─► Module 7 ─► execution_result.json
-                       │                                               ├─► <id>_tree_points.geojson
-                       │                                               └─► <id>_plugin_output.json
-                       └──────────────────── M3 / M9 / M10 / M11 read results through M2
+M1 (image + metadata) â”€â”
+M3 (AOI) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â–º M2 builds execution_payload.json â”€â–º Module 7 â”€â–º execution_result.json
+                       â”‚                                               â”œâ”€â–º <id>_tree_points.geojson
+                       â”‚                                               â””â”€â–º <id>_plugin_output.json
+                       â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ M3 / M9 / M10 / M11 read results through M2
 ```
 
 When the plugin fails (missing image, broken GeoJSON, and so on) it **still** writes `result.json`
@@ -53,14 +53,30 @@ Follows `schemas/execution_payload.schema.json`. Fields Module 7 reads:
 
 **Parameters** (`parameters.json`, rendered by Module 2 as a form):
 
-| `name`                 | Type        | Default            | Description                                      |
-| :--------------------- | :---------- | :----------------- | :----------------------------------------------- |
-| `confidence_threshold` | number 0-1  | `0.5`              | detections below this are dropped                |
-| `density_unit`         | select      | `per_ha`           | `per_ha` or `per_m2`                             |
-| `detector`             | select      | `opencv_watershed` | detection model; `stub` = placeholder (0 trees)  |
-| `iou_threshold`        | number 0-1  | `0.5`              | overlap limit for cross-tile dedup               |
-| `tile_size`            | number (px) | `1024`             | inference tile size                              |
-| `gsd_cm`               | number      | `3.0`              | fallback when the metadata carries no `gsd_m`    |
+| `name`                  | Type        | Default            | Description                                                       |
+| :---------------------- | :---------- | :----------------- | :---------------------------------------------------------------- |
+| `confidence_threshold`  | number 0-1  | `0.5`              | detections below this are dropped                                 |
+| `density_unit`          | select      | `per_ha`           | `per_ha` or `per_m2`                                              |
+| `detector`              | select      | `opencv_watershed` | `opencv_watershed`, `deeplabv3plus`, or `stub` (`0` trees)        |
+| `model_path`            | string      | `""`               | checkpoint for `deeplabv3plus`; ignored by the other detectors    |
+| `backbone`              | select      | `resnet101`        | `resnet101` or `xception`; must match the checkpoint              |
+| `probability_threshold` | number 0-1  | `0.5`              | canopy probability above which a pixel is a tree (`deeplabv3plus`) |
+| `iou_threshold`         | number 0-1  | `0.5`              | overlap limit for cross-tile dedup                                |
+| `tile_size`             | number (px) | `1024`             | inference tile size                                               |
+| `gsd_cm`                | number      | `3.0`              | fallback when the metadata carries no `gsd_m`                     |
+
+The three `deeplabv3plus` parameters were added in 0.3.0, so Module 2's form has three more fields.
+Module 2 renders them from `parameters.json` and does not have to know what they mean; a run that
+leaves `model_path` empty and picks `deeplabv3plus` fails with `status: "failure"` and an error
+naming that parameter.
+
+**Detection model.** Module 7 and Module 8 share one architecture: DeepLabV3+ with a ResNet101 or
+Xception encoder. Module 7 runs it as a binary canopy segmentation (one class), takes connected
+components of the thresholded probability map as individual crowns, and uses the mean probability
+inside each component as that crown's `confidence` - the same number Feature 3 filters on. The model
+is built from `segmentation-models-pytorch`, so this repo carries no architecture code of its own.
+Training, labelling and weight selection are outside Module 7, which is why `opencv_watershed` stays
+the default until a checkpoint exists.
 
 ## 3. Output
 
@@ -98,10 +114,10 @@ One `Feature` per counted tree. Coordinates are `[longitude, latitude]` in EPSG:
   "features": [
     {
       "type": "Feature",
-      "id": "DJI_0042-deepforest-0001",
+      "id": "DJI_0042-deeplabv3plus-0001",
       "geometry": { "type": "Point", "coordinates": [116.8535, -1.2445] },
       "properties": {
-        "detection_id": "DJI_0042-deepforest-0001",
+        "detection_id": "DJI_0042-deeplabv3plus-0001",
         "confidence": 0.93,
         "area_m2": 18.4,
         "bbox_px": [1990.0, 1490.0, 2010.0, 1510.0]
@@ -113,7 +129,7 @@ One `Feature` per counted tree. Coordinates are `[longitude, latitude]` in EPSG:
 
 - `detection_id` is shaped `{image_id}-{model_name}-{4 digit number}`. Detections added by hand
   through Detection Review start with `manual-`.
-- `area_m2` is the estimated crown box area (`pixel bbox area × gsd_m²`).
+- `area_m2` is the estimated crown box area (`pixel bbox area Ã— gsd_mÂ²`).
 - `bbox_px` is `[x_min, y_min, x_max, y_max]` in original image pixels, for drawing boxes over the
   photo.
 
@@ -148,7 +164,7 @@ Matches the `PluginOutput` model in Module 7's progress report (`treedet/models.
   "geojson": "<string holding the tree_points above>",
   "metadata": {
     "plugin_version": "0.1.0",
-    "model_name": "deepforest",
+    "model_name": "deeplabv3plus",
     "model_version": null,
     "executed_at": "2026-09-21T09:15:00+00:00",
     "device": "cpu",
@@ -160,8 +176,8 @@ Matches the `PluginOutput` model in Module 7's progress report (`treedet/models.
 }
 ```
 
-`PluginOutput` status maps onto the official schema: `success → success`, `partial → warning`,
-`failed → failure`.
+`PluginOutput` status maps onto the official schema: `success â†’ success`, `partial â†’ warning`,
+`failed â†’ failure`.
 
 ## 4. Per consuming module
 
@@ -210,7 +226,7 @@ Where this differs from the progress report, and why:
 |  2  | Counting per plot: aggregate points in M9, or have M2 run Module 7 once per plot?                                                                                                                                                                   | M2, M9     | aggregate in M9 (one run for all plots)                                                        |
 |  3  | Detection Review needs somewhere to store user corrections and a way to hand them to the plugin. That needs a new Tauri command in core                                                                                                             | M2         | M2 adds a command to save corrections; Module 7 takes the correction file path as a parameter  |
 |  4  | Who converts the GeoJSON into M3's `spatial_results` shape?                                                                                                                                                                                         | M3         | M3 (the plugin keeps emitting standard GeoJSON)                                                |
-|  5  | Which detection model gets used, classical OpenCV or something deep learning based such as DeepForest?                                                                                                                                              | lecturer/team | Module 7 decides this; it does not change this contract                                     |
+|  5  | Which detection model gets used, classical OpenCV or something deep learning based such as deeplabv3plus?                                                                                                                                              | lecturer/team | Module 7 decides this; it does not change this contract                                     |
 |  6  | The plugin now lives in its own repo (`Module-7-Potencial-Men`). Should the copy in the core repo's `plugins/tree_detection/` be deleted?                                                                                                           | M2         | delete it after the new repo is pushed, so there is no second source of truth                   |
 
 ## 7. Version history

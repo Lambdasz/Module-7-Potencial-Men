@@ -38,6 +38,9 @@ class RunParameters(BaseModel):
     confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     density_unit: DensityUnit = "per_ha"
     detector: str = "opencv_watershed"
+    model_path: str = ""
+    backbone: str = "resnet101"
+    probability_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     iou_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     tile_size: int = Field(default=1024, gt=0)
     gsd_cm: float = Field(default=3.0, gt=0.0)
@@ -103,6 +106,9 @@ def model_config_of(parameters: RunParameters) -> dict[str, Any]:
         "gsd_cm": parameters.gsd_cm,
         "iou_threshold": parameters.iou_threshold,
         "tile_size": parameters.tile_size,
+        "model_path": parameters.model_path,
+        "backbone": parameters.backbone,
+        "probability_threshold": parameters.probability_threshold,
     }
 
 

@@ -20,11 +20,20 @@ detector, `opencv_watershed`, is classical image processing: Excess Green, Otsu 
 morphology, distance transform, then a split for touching crowns. The choice comes down to no GPU,
 no downloaded weights, and identical output for identical input, which keeps the tests offline.
 
+The agreed deep-learning model, `deeplabv3plus`, is registered and wired: DeepLabV3+ with a
+ResNet101 or Xception encoder, built from segmentation-models-pytorch, run tile by tile, and turned
+into one box per crown with the mean canopy probability as its confidence. It is an option, not the
+default, for one reason only: it needs a checkpoint from training, and no such checkpoint exists yet.
+Picking it without `model_path` fails with a message naming the parameter instead of returning zero
+trees that look like an empty orchard.
+
 What to know before trusting the numbers:
 
-- The detector is classical, not deep learning. Accuracy on dense tropical canopy has not been
-  measured. A `deepforest` comparison sits in `requirements.txt` as a comment and gets enabled only
-  after precision/recall benchmarking on labelled images.
+- Accuracy on dense tropical canopy has not been measured, for either detector. Synthetic images
+  prove the wiring, not the accuracy.
+- `deeplabv3plus` needs torch and segmentation-models-pytorch, which stay commented out in
+  `requirements.txt`. The healthcheck lists them as optional, so a machine without them still
+  reports the plugin as healthy for the default detector.
 - RGB only. No tree height, volume, biomass or species. The contract states this so Module 3 does
   not wait for fields that are not coming.
 - Manual correction (Feature 7) is implemented and tested but not wired to the UI. That needs a new
@@ -46,7 +55,7 @@ What to know before trusting the numbers:
 ├── treedet/                 # Core logic (pure functions)
 │   ├── models.py            # Shared data models (Pydantic v2, immutable)
 │   ├── errors.py            # PluginExecutionError and subclasses
-│   ├── detectors.py         # Detection model registry and the opencv_watershed detector
+│   ├── detectors.py         # Detection model registry, opencv_watershed and deeplabv3plus
 │   ├── detection.py         # Feature 1: detect_trees (+ cross-tile dedup)
 │   ├── counting.py          # Feature 2: count_trees
 │   ├── filtering.py         # Feature 3: filter_by_confidence
@@ -140,9 +149,11 @@ check-jsonschema --schemafile schemas/execution_result.schema.json  <this-repo>/
 
 1. Write a function `(image_path: str, model_config: Mapping) -> Sequence[tuple[BBox, float]]` in
    `treedet/detectors.py`. It returns crown boxes in pixels with a 0-1 confidence.
-2. Register it in `DETECTORS`, for example `"deepforest": deepforest_detector`.
+2. Register it in `DETECTORS`, for example `"deeplabv3plus": deeplabv3plus_detector`.
 3. Add the name to `options` of the `detector` parameter in `parameters.json`.
-4. Add the package to `requirements.txt` and to `check_dependencies()` in `main.py`.
+4. Add the package to `requirements.txt` and to `check_dependencies()` in `main.py`. A package the
+   detector needs on top of the default one belongs in `check_optional_dependencies()` instead, so a
+   missing torch does not make the whole plugin look broken.
 5. If it uses a GPU, adjust `execution.gpu` in `manifest.json`.
 
 The detector handles tiling itself (size comes from `model_config["tile_size"]`) and the inference
@@ -162,3 +173,8 @@ otherwise the value reaches the form and then gets ignored in silence.
   copy with the higher confidence.
 - Without `gsd_m` and `rotation_deg` from Module 1, the plugin falls back to the `gsd_cm` parameter
   (default 3 cm/px) and zero rotation.
+- `deeplabv3plus` cannot run at all without a checkpoint, and a checkpoint trained with another
+  encoder or with two output classes is rejected when the weights are loaded.
+- Inference in `deeplabv3plus` runs on CPU when no CUDA device is present. One 24 MP photo is far
+  slower than the 300 s timeout in `manifest.json` allows, so measure before pointing it at a full
+  flight session.

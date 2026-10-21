@@ -55,6 +55,22 @@ def check_dependencies() -> tuple[bool, dict[str, str]]:
     return all_ok, statuses
 
 
+def check_optional_dependencies() -> dict[str, str]:
+    """Modules only the 'deeplabv3plus' detector needs.
+
+    Reported but never fatal: the plugin runs with the default detector without them,
+    and the user only hits the missing package if they pick that model.
+    """
+    statuses: dict[str, str] = {}
+    for module_name in ("torch", "segmentation_models_pytorch"):
+        try:
+            importlib.import_module(module_name)
+            statuses[module_name] = "available"
+        except ImportError as err:
+            statuses[module_name] = f"missing: {err}"
+    return statuses
+
+
 def handle_healthcheck() -> None:
     plugin_id, version = load_manifest_metadata()
     deps_ok, deps_status = check_dependencies()
@@ -64,6 +80,7 @@ def handle_healthcheck() -> None:
         "version": version,
         "python_version": sys.version.split()[0],
         "dependencies": deps_status,
+        "optional_dependencies": check_optional_dependencies(),
     }
     if not deps_ok:
         health_info["error"] = (
