@@ -1,4 +1,4 @@
-"""Unit tests for the pure Module 7 features. Run from plugins/tree_detection:
+"""Unit tests for the pure Module 7 features. Run from the repository root:
 
 python -m unittest discover -s tests -v
 """
