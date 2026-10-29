@@ -13,6 +13,20 @@ The repo stands alone, separate from the core repo (`Aerial-Analytics-Platform`)
 talk to it through six JSON files, not by importing code. The official schemas (`schemas/`) belong
 to the core repo, so validating the contracts below needs a copy of it.
 
+## Install
+
+The app takes the plugin as a `.zip` through Extension Manager, Install Plugin. Cutting a release
+builds it:
+
+```bash
+git tag v0.4.0
+git push origin v0.4.0
+```
+
+`.github/workflows/release.yml` refuses a tag that disagrees with the version in `manifest.json`,
+then attaches `tree-detection-counting-v<version>.zip` to the release. `manifest.json` sits at the
+root of the archive, which is where the installer looks for it; `tests/` is not packed.
+
 ## Status
 
 All eight features run and are covered by tests, the detection model included. The default

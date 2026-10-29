@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag agrees with the manifest version
+        run: |
+          version=$(python -c "import json; print(json.load(open('manifest.json'))['metadata']['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match manifest.json $version"
+            exit 1
+          fi
+
+      - name: Build the archive the app installs
+        run: |
+          archive="tree-detection-counting-${GITHUB_REF_NAME}.zip"
+          zip -r "$archive" \
+            manifest.json main.py parameters.json inputs.json outputs.json \
+            requirements.txt README.md CONTRACT.md LICENSE treedet \
+            -x '*__pycache__*'
+          gh release create "$GITHUB_REF_NAME" "$archive" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
