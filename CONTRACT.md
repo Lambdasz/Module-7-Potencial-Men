@@ -2,8 +2,10 @@
 
 > Audience: the Module 2 (Plugin Manager), 3 (Map Explorer), 9 (Area & Plot), 10 (Temporal) and 11
 > (Dashboard) teams.
-> Status: **draft v0.2.0, not final**. The [Open questions](#6-open-questions) section is waiting on
-> answers from the teams involved. Field names in this document match the code exactly.
+> Status: **frozen at v0.4.0**. The fields, metrics and artifacts below are what other modules can
+> build against. The [Open questions](#6-open-questions) left are host-side work that does not change
+> this contract; anything that would, such as a new parameter or metric, ships as v0.5.0 after the
+> teams named in that section agree. Field names in this document match the code exactly.
 
 This document describes what Module 7 **takes in** and **gives back**. Other modules do not need to
 read Module 7's Python to use it.
@@ -50,6 +52,12 @@ Follows `schemas/execution_payload.schema.json`. Fields Module 7 reads:
 | `parameters.*`                        |   yes    | M2 (form)  | see the parameter table below                                                  |
 
 \* When `gsd_m` is absent, the `gsd_cm` parameter is used instead (default 3 cm/px).
+
+`gsd_m`, `rotation_deg` and `image_id` cannot be declared in `inputs.json`. The schema's
+`optional_metadata` enum stops at `resolution`, `gps`, `altitude`, `timestamp` and `camera_model`, so
+Module 2's form will never list them. The plugin reads them from `target.metadata` anyway and falls
+back as stated above, which is why the gap does not block a run. Open question 7 asks Module 2 to
+widen the enum.
 
 **Parameters** (`parameters.json`, rendered by Module 2 as a form):
 
@@ -184,7 +192,7 @@ Matches the `PluginOutput` model in Module 7's progress report (`treedet/models.
 | Module                | What it uses                                                                       | Notes                                                                                                                                                                                                                                                                                                                                                                            |
 | :-------------------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **M2** Plugin Manager | the CLI in section 1; `manifest.json`, `parameters.json`, `inputs.json`, `outputs.json` | all pass `check-jsonschema` against `schemas/`                                                                                                                                                                                                                                                                                                                                  |
-| **M3** Map Explorer   | the `tree_points` artifact                                                         | layer_hint `point_marker`. M3's example in `docs/examples/spatial-result.example.json` uses the `spatial_results` shape; M3 only needs to turn each `Feature` into `{source, geometry, properties}` with `source = "tree-detection-counting"`. `height_est_m` is **not** available, since a single RGB image says nothing about height |
+| **M3** Map Explorer   | the `tree_points` artifact                                                         | layer_hint `point_marker`. M3's example in `src/modules/module-03/docs/examples/spatial-result.example.json` uses the `spatial_results` shape; M3 only needs to turn each `Feature` into `{source, geometry, properties}` with `source = "tree-detection-counting"`. `height_est_m` is **not** available, since a single RGB image says nothing about height |
 | **M9** Area & Plot    | `tree_points` or `plugin_output.detections[].center`                               | count per plot with point-in-polygon against M9's `Plot.rings`, or call `plot_summaries` with the whole plot list and let it count, measure and divide in one pass. Alternative: M2 runs Module 7 with `aoi` set to one plot, then `tree_count` is the count for that plot                                                                                                          |
 | **M10** Temporal      | the `tree_count` metric from two runs (different dates)                            | only compare when `confidence_threshold`, `detector` and the AOI match. `compare_plot_summaries` joins two runs on `plot_id` and adds `tree_count_change`; a plot present in only one run keeps `null` on the missing side instead of disappearing                                                                                                                                |
 | **M11** Dashboard     | every `metrics` entry plus `plugin_output.statistics`                              | labels and units live in `outputs.json`                                                                                                                                                                                                                                                                                                                                          |
@@ -220,6 +228,9 @@ Where this differs from the progress report, and why:
 - `image_id` and `project_id` are not part of the official payload schema, so they come from
   `target.metadata.image_id` (or the file name) and `session_id`.
 - The `partial`/`failed` statuses map to `warning`/`failure` in the official result schema.
+- `apply_review` (Feature 7) ships as a library function only. No payload parameter points at a
+  corrections file yet, because storing the reviewer's edits needs a command in Module 2 (open
+  question 3). Hosts that want it today call the function from Python, on the artifact.
 
 ## 6. Open questions
 
@@ -231,6 +242,8 @@ Where this differs from the progress report, and why:
 |  4  | Who converts the GeoJSON into M3's `spatial_results` shape?                                                                                                                                                                                         | M3         | M3 (the plugin keeps emitting standard GeoJSON)                                                |
 |  5  | Which detection model gets used, classical OpenCV or something deep learning based such as deeplabv3plus?                                                                                                                                              | lecturer/team | Decided: DeepLabV3+ with a ResNet101 or Xception encoder, via `segmentation-models-pytorch`. `opencv_watershed` stays the default until a checkpoint exists |
 |  6  | The plugin now lives in its own repo (`Module-7-Potencial-Men`). Should the copy in the core repo's `plugins/tree_detection/` be deleted?                                                                                                           | M2         | delete it after the new repo is pushed, so there is no second source of truth                   |
+
+|  7  | `inputs.schema.json` limits `optional_metadata` to resolution, gps, altitude, timestamp and camera_model, so `gsd_m`, `rotation_deg` and `image_id` cannot be declared and Module 2's form cannot show them | M2 | widen the enum, or add a free-form metadata map; Module 7 needs no code change either way |
 
 ## 7. Version history
 
